@@ -71,8 +71,19 @@ def _warmup_reranker():
     return True
 
 
-with st.spinner("Loading reranker model…"):
+# Pre-warm the embedder so the first ingestion doesn't pay the model load cost
+@st.cache_resource
+def _warmup_embedder():
+    from backend.ingestion import get_embeddings
+    emb = get_embeddings()
+    # Force the underlying SentenceTransformer to load now (it's lazy by default)
+    emb.embed_query("warmup")
+    return True
+
+
+with st.spinner("Loading models (reranker + embedder)…"):
     _warmup_reranker()
+    _warmup_embedder()
 
 
 # ============================================================
@@ -104,20 +115,22 @@ with st.sidebar:
         label_visibility="collapsed",
     )
     if uploaded:
-        with st.spinner("Ingesting…"):
+        with st.status("Ingesting…", expanded=True) as status:
             for f in uploaded:
+                status.update(label=f"Ingesting {f.name}…")
                 dest = UPLOAD_DIR / f.name
                 dest.write_bytes(f.getbuffer())
-                res = ingest_file(dest)
-                st.toast(f"{res['status']}: {res['file']} ({res.get('chunks', 0)} chunks)")
+                res = ingest_file(dest, progress_cb=lambda m: status.write(m))
+                status.write(f"✅ {res['status']}: {res['file']} ({res.get('chunks', 0)} chunks)")
+            status.update(label="Done.", state="complete")
         st.rerun()
 
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🔄 Sync KB", use_container_width=True):
-            with st.spinner("Reindexing…"):
-                ingest_all_uploads()
-            st.toast("Knowledge base synced")
+            with st.status("Reindexing…", expanded=True) as status:
+                ingest_all_uploads(progress_cb=lambda m: status.write(m))
+                status.update(label="Knowledge base synced.", state="complete")
             st.rerun()
     with col2:
         if st.button("🗑️ Clear KB", use_container_width=True):
@@ -127,13 +140,17 @@ with st.sidebar:
 
     # ---- Runtime panel ----
     provider_color = "ok" if SETTINGS.llm_provider in ("groq", "nvidia") else ""
+    # Show only the basename (after the last "/") so HF model ids like
+    # "sentence-transformers/all-MiniLM-L6-v2" don't overflow the row.
+    embed_short = SETTINGS.embedding_model.rsplit("/", 1)[-1]
+    llm_short = SETTINGS.llm_model.rsplit("/", 1)[-1]
     st.markdown(
         f"""
         <div class="sidebar-section">
           <div class="label">Runtime</div>
           <div class="runtime-row"><span class="k">Provider</span><span class="v {provider_color}">{SETTINGS.llm_provider.upper()}</span></div>
-          <div class="runtime-row"><span class="k">LLM</span><span class="v">{SETTINGS.llm_model}</span></div>
-          <div class="runtime-row"><span class="k">Embeddings</span><span class="v">{SETTINGS.embedding_model}</span></div>
+          <div class="runtime-row"><span class="k">LLM</span><span class="v" title="{SETTINGS.llm_model}">{llm_short}</span></div>
+          <div class="runtime-row"><span class="k">Embeddings</span><span class="v" title="{SETTINGS.embedding_model}">{embed_short}</span></div>
           <div class="runtime-row"><span class="k">Vector DB</span><span class="v">ChromaDB</span></div>
           <div class="runtime-row"><span class="k">Hybrid search</span><span class="v ok">{'on' if SETTINGS.use_hybrid else 'off'}</span></div>
           <div class="runtime-row"><span class="k">Reranker</span><span class="v ok">{'on' if SETTINGS.use_reranker else 'off'}</span></div>

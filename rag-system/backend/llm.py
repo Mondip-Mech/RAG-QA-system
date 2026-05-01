@@ -1,7 +1,7 @@
 """
 LLM factory — supports Groq and NVIDIA NIM only.
 
-Embeddings stay local on Ollama (see ingestion.py).
+Embeddings run in-process via sentence-transformers (see ingestion.py).
 Switch chat providers via LLM_PROVIDER env var.
 """
 from __future__ import annotations

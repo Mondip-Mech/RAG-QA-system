@@ -18,7 +18,7 @@ from langchain_core.documents import Document
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_experimental.text_splitter import SemanticChunker
-from langchain_ollama import OllamaEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_community.retrievers import BM25Retriever
 
@@ -29,14 +29,23 @@ BM25_PICKLE = Path(SETTINGS.chroma_dir) / "bm25.pkl"
 MANIFEST_PATH = Path(SETTINGS.chroma_dir) / "manifest.json"
 
 
-# ---------- Embeddings (singleton-ish) ----------
+# ---------- Embeddings (singleton-ish, in-process via sentence-transformers) ----------
 _embeddings = None
-def get_embeddings() -> OllamaEmbeddings:
+def get_embeddings() -> HuggingFaceEmbeddings:
     global _embeddings
     if _embeddings is None:
-        _embeddings = OllamaEmbeddings(
-            base_url=SETTINGS.ollama_base_url,
-            model=SETTINGS.embedding_model,
+        _embeddings = HuggingFaceEmbeddings(
+            model_name=SETTINGS.embedding_model,
+            model_kwargs={"device": "cpu"},
+            # batch_size 64 ≈ 2× faster on CPU than the default 32 for bge-small.
+            # NOTE: don't put show_progress_bar in encode_kwargs — the langchain
+            # wrapper already injects it from `show_progress`, so passing it here
+            # raises "got multiple values for keyword argument".
+            encode_kwargs={
+                "normalize_embeddings": True,
+                "batch_size": 64,
+            },
+            show_progress=True,
         )
     return _embeddings
 
@@ -132,14 +141,27 @@ def load_bm25() -> BM25Retriever | None:
 
 
 # ---------- Public API ----------
-def ingest_file(path: Path) -> dict:
-    """Ingest a single PDF. Skips if already ingested (by hash)."""
+def ingest_file(path: Path, progress_cb=None) -> dict:
+    """Ingest a single PDF. Skips if already ingested (by hash).
+
+    progress_cb: optional callable(str) — phase messages for UI status updates.
+    """
+    def _p(msg: str) -> None:
+        if progress_cb:
+            try:
+                progress_cb(msg)
+            except Exception:
+                pass
+
     manifest = load_manifest()
     fhash = file_hash(path)
     if path.name in manifest["files"] and manifest["files"][path.name]["hash"] == fhash:
         return {"status": "skipped", "file": path.name, "chunks": manifest["files"][path.name]["chunks"]}
 
+    _p(f"📄 Loading {path.name}…")
     docs = load_pdf(path)
+
+    _p(f"✂️ Chunking {len(docs)} pages…")
     chunks = chunk_documents(docs)
 
     vs = get_vectorstore()
@@ -148,6 +170,8 @@ def ingest_file(path: Path) -> dict:
         vs.delete(where={"source": path.name})
     except Exception:
         pass
+
+    _p(f"🧠 Embedding {len(chunks)} chunks (this is the slow step on CPU)…")
     vs.add_documents(chunks)
 
     manifest["files"][path.name] = {
@@ -157,7 +181,7 @@ def ingest_file(path: Path) -> dict:
     }
     save_manifest(manifest)
 
-    # Rebuild BM25 over everything
+    _p("🔍 Rebuilding BM25 sparse index…")
     all_docs = vs.get()
     rebuilt = [
         Document(page_content=t, metadata=m)
@@ -168,10 +192,10 @@ def ingest_file(path: Path) -> dict:
     return {"status": "ingested", "file": path.name, "chunks": len(chunks)}
 
 
-def ingest_all_uploads() -> list[dict]:
+def ingest_all_uploads(progress_cb=None) -> list[dict]:
     results = []
     for p in sorted(UPLOAD_DIR.glob("*.pdf")):
-        results.append(ingest_file(p))
+        results.append(ingest_file(p, progress_cb=progress_cb))
     return results
 
 

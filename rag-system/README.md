@@ -1,6 +1,6 @@
 # RAG Q&A system
 
-A modern, hybrid-cloud RAG system with a polished Streamlit UI. Cloud LLMs (Groq Llama 3.3 70B or NVIDIA NIM) handle generation; embeddings stay local via Ollama. Built with LangChain, LangGraph, and ChromaDB.
+A modern, hybrid-cloud RAG system with a polished Streamlit UI. Cloud LLMs (Groq Llama 3.3 70B or NVIDIA NIM) handle generation; embeddings run in-process via `sentence-transformers` — no external embedding service required. Built with LangChain, LangGraph, and ChromaDB.
 
 ## Pipeline
 
@@ -40,20 +40,18 @@ Every assistant turn renders as a structured, educational answer:
 
 ## Setup
 
-### 1. Install Ollama and pull the embedding model
-```bash
-# https://ollama.com
-ollama pull nomic-embed-text       # embeddings (local)
-```
-
-### 2. Install Python deps
+### 1. Install Python deps
 ```bash
 python -m venv .venv && source .venv/bin/activate   # macOS/Linux
 # or:  python -m venv .venv && .venv\Scripts\activate   # Windows
 pip install -r requirements.txt
 ```
 
-### 3. Configure your LLM provider
+> First run downloads two models from HuggingFace into your local cache:
+> `BAAI/bge-small-en-v1.5` (embeddings, ~130 MB) and
+> `BAAI/bge-reranker-base` (reranker, ~280 MB).
+
+### 2. Configure your LLM provider
 ```bash
 cp .env.example .env
 ```
@@ -65,23 +63,32 @@ Then edit `.env`:
 
 > **⚠️ Never commit `.env`.** It is already in `.gitignore`.
 
-### 4. Run the UI
+### 3. Run the UI
 ```bash
 streamlit run frontend/app.py
 ```
 
 Open http://localhost:8501.
 
-### 5. (Alternative) Run the FastAPI backend
+### 4. (Alternative) Run the FastAPI backend
 ```bash
 uvicorn backend.api:app --reload --port 8000
 ```
 
-### 6. Docker
+### 5. Docker
 ```bash
 docker compose up --build
-docker exec rag-ollama ollama pull nomic-embed-text
 ```
+Streamlit will be at http://localhost:7860 (HuggingFace Spaces convention).
+
+## Deploy to HuggingFace Spaces (free)
+
+1. Create a new Space → SDK: **Docker**
+2. Push this repo to the Space's git remote
+3. In Space **Settings → Variables and secrets**, add:
+   - `GROQ_API_KEY` (and/or `NVIDIA_API_KEY`)
+   - `LLM_PROVIDER=groq`
+4. The Dockerfile pre-downloads embedding + reranker models during build, so first request is instant. The container listens on port 7860.
 
 ## Project structure
 

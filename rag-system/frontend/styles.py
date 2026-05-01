@@ -50,9 +50,15 @@ section[data-testid="stSidebar"] * { color: #d8dbe3 !important; }
 .runtime-row {
   display: flex; justify-content: space-between; align-items: center;
   padding: 4px 0; font-size: 12.5px;
+  gap: 10px;
 }
-.runtime-row .k { color: #8893aa; }
-.runtime-row .v { color: #e6e8ee; font-weight: 500; }
+.runtime-row .k { color: #8893aa; flex-shrink: 0; }
+.runtime-row .v {
+  color: #e6e8ee; font-weight: 500;
+  text-align: right;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0;
+}
 .runtime-row .v.ok { color: #4ade80; }
 
 .file-pill {
