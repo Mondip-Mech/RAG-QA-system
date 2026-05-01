@@ -140,13 +140,17 @@ with st.sidebar:
 
     # ---- Runtime panel ----
     provider_color = "ok" if SETTINGS.llm_provider in ("groq", "nvidia") else ""
+    # Show only the basename (after the last "/") so HF model ids like
+    # "sentence-transformers/all-MiniLM-L6-v2" don't overflow the row.
+    embed_short = SETTINGS.embedding_model.rsplit("/", 1)[-1]
+    llm_short = SETTINGS.llm_model.rsplit("/", 1)[-1]
     st.markdown(
         f"""
         <div class="sidebar-section">
           <div class="label">Runtime</div>
           <div class="runtime-row"><span class="k">Provider</span><span class="v {provider_color}">{SETTINGS.llm_provider.upper()}</span></div>
-          <div class="runtime-row"><span class="k">LLM</span><span class="v">{SETTINGS.llm_model}</span></div>
-          <div class="runtime-row"><span class="k">Embeddings</span><span class="v">{SETTINGS.embedding_model}</span></div>
+          <div class="runtime-row"><span class="k">LLM</span><span class="v" title="{SETTINGS.llm_model}">{llm_short}</span></div>
+          <div class="runtime-row"><span class="k">Embeddings</span><span class="v" title="{SETTINGS.embedding_model}">{embed_short}</span></div>
           <div class="runtime-row"><span class="k">Vector DB</span><span class="v">ChromaDB</span></div>
           <div class="runtime-row"><span class="k">Hybrid search</span><span class="v ok">{'on' if SETTINGS.use_hybrid else 'off'}</span></div>
           <div class="runtime-row"><span class="k">Reranker</span><span class="v ok">{'on' if SETTINGS.use_reranker else 'off'}</span></div>
