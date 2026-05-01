@@ -40,9 +40,10 @@ class Settings:
 
     llm_temperature: float = 0.1
 
-    # ---- Embeddings (always local Ollama) ----
-    ollama_base_url: str = field(default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
-    embedding_model: str = field(default_factory=lambda: os.getenv("EMBEDDING_MODEL", "nomic-embed-text"))
+    # ---- Embeddings (in-process via sentence-transformers; no external service) ----
+    # Any HuggingFace sentence-transformers model id works.
+    # Defaults to BAAI/bge-small-en-v1.5 — ~130MB, strong quality, fast on CPU.
+    embedding_model: str = field(default_factory=lambda: os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5"))
 
     # ---- Reranker ----
     reranker_model: str = "BAAI/bge-reranker-base"

@@ -1,37 +1,13 @@
 services:
-  ollama:
-    image: ollama/ollama:latest
-    container_name: rag-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-    # GPU support: uncomment if you have NVIDIA + nvidia-container-toolkit
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
-
   rag-app:
     build: .
     container_name: rag-app
-    depends_on:
-      - ollama
-    environment:
-      OLLAMA_BASE_URL: http://ollama:11434
-      LLM_MODEL: ${LLM_MODEL:-gemma2:2b}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+    env_file:
+      - .env
     ports:
-      - "8501:8501"   # Streamlit
+      - "7860:7860"   # Streamlit
       - "8000:8000"   # FastAPI (optional)
     volumes:
       - ./data:/app/data
     restart: unless-stopped
-    command: streamlit run frontend/app.py --server.address=0.0.0.0 --server.port=8501
-
-volumes:
-  ollama_data:
+    command: streamlit run frontend/app.py --server.address=0.0.0.0 --server.port=7860
