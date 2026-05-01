@@ -37,13 +37,15 @@ def get_embeddings() -> HuggingFaceEmbeddings:
         _embeddings = HuggingFaceEmbeddings(
             model_name=SETTINGS.embedding_model,
             model_kwargs={"device": "cpu"},
-            # batch_size 64 ≈ 2× faster on CPU than the default 32 for bge-small;
-            # show_progress_bar on stderr makes long jobs visible in the terminal.
+            # batch_size 64 ≈ 2× faster on CPU than the default 32 for bge-small.
+            # NOTE: don't put show_progress_bar in encode_kwargs — the langchain
+            # wrapper already injects it from `show_progress`, so passing it here
+            # raises "got multiple values for keyword argument".
             encode_kwargs={
                 "normalize_embeddings": True,
                 "batch_size": 64,
-                "show_progress_bar": True,
             },
+            show_progress=True,
         )
     return _embeddings
 

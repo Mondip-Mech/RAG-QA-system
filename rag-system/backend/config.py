@@ -54,7 +54,7 @@ class Settings:
     chroma_dir: str = str(CHROMA_DIR)
 
     # ---- Chunking ----
-    chunk_size: int = 1200
+    chunk_size: int = 1800
     chunk_overlap: int = 150
     use_semantic_chunking: bool = False
 
